@@ -1,0 +1,70 @@
+---
+title: "MachineLearning"
+output: html_document
+---
+
+# Practical Machine Learning Course Project
+by Davin Kaing
+
+## Description
+
+As part of the Data Science Specialization course, Practical Machine Learning, this purpose of this course project is to apply machine to the data from: http://groupware.les.inf.puc-rio.br/har. This data is from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. A program was used to create a predicting model for this data. 
+
+## Data Processing 
+
+The data was downloaded from the following sites and assigned to their proper variable. 
+
+```{r}
+
+setwd("/Users/davinkaing")
+TrainingUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+TestingUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+download.file(TrainingUrl, destfile = "./data/Training.csv", method = "curl")
+Training <- read.csv("./data/Training.csv")
+download.file(TestingUrl, destfile = "./data/Testing.csv", method = "curl")
+Testing <- read.csv("./data/Testing.csv")
+```
+
+Afterwards, the training data was processed and clean by removing NA's and columns with blank values. 
+
+``` {r}
+
+Training <- Training[, colSums(is.na(Training))<(0.5*nrow(Training))]
+Testing <- Testing[, colSums(is.na(Testing))<(0.5*nrow(Testing))]
+NewTraining <- Training[, names(Testing)[1:59]]
+Training <- cbind(NewTraining, Training[,93])
+Training <- Training[,-c(3:7)]
+colnames(Training)[55] <- "class"
+```
+
+In order to find the best predictors, the variable importance of a small sample of the training data was determined. From this information, the data was processed further. 
+
+``` {r}
+library(randomForest)
+library(caret)
+Partition <- createDataPartition(y = Training$class, p = 0.3, list = FALSE)
+Part_Train <- Training[Partition,]
+Part_Train <- Part_Train[,-1]
+modanal <- randomForest(class~., data = Part_Train)
+VarImp <- data.frame(rownames(varImp(modanal)),varImp(modanal))
+colnames(VarImp) <- c("variables", "importance")
+OrderedVarImp <- VarImp[order(VarImp$importance, decreasing = TRUE),]
+
+ProcessedTraining <- Training[, paste(OrderedVarImp$variables[1:30])]
+ProcessedTraining <- cbind(ProcessedTraining, Training$class)
+colnames(ProcessedTraining)[31] <- "class"
+```
+
+Once the data is processed, the training data is trained using random forest. This model fit is then used to predict the testing subsetted testing data. The confusion matrix details the accuracy of the model. 
+
+```{r}
+inTrain <- createDataPartition(y = ProcessedTraining$class, p = 0.75, list = FALSE)
+training <- ProcessedTraining[inTrain,]
+testing <- ProcessedTraining[-inTrain,]
+
+modfit <- train(class~., method = "rf", data = training)
+
+pred <- predict(modfit, testing)
+confusionMatrix(testing$class, pred)
+```
+
